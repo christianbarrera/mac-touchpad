@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>Mac Touchpad setup</title>
+<style>
+  :root { --bg:#0b0d12; --fg:#e8eaf0; --dim:#9aa3b2; --card:#151922; --accent:#4f8cff; --ok:#3ecf8e; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.45 -apple-system, system-ui, sans-serif;
+         padding: max(16px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom)); }
+  main { max-width: 520px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 8px 0 4px; }
+  p { margin: 8px 0; }
+  .dim { color: var(--dim); font-size: 14px; }
+  .note { background:#2a2110; border:1px solid #5a4416; border-radius:12px; padding:12px; margin:12px 0; }
+  ol { padding: 0; list-style: none; counter-reset: s; }
+  li { counter-increment: s; background: var(--card); border-radius: 14px; padding: 14px 14px 14px 52px;
+       margin: 10px 0; position: relative; }
+  li::before { content: counter(s); position:absolute; left:14px; top:14px; width:26px; height:26px;
+               border-radius:50%; background:var(--accent); color:#fff; font-weight:600;
+               display:flex; align-items:center; justify-content:center; font-size:14px; }
+  li.done::before { content: "✓"; background: var(--ok); }
+  .btn { display:inline-block; margin-top:8px; padding:10px 16px; border-radius:10px; background:var(--accent);
+         color:#fff; text-decoration:none; font-weight:600; }
+  code, .fp { font: 12px/1.4 ui-monospace, Menlo, monospace; color: var(--dim); }
+  code { word-break: break-all; }
+  #status { font-weight: 600; }
+  #status.ok { color: var(--ok); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Set up secure connection</h1>
+  <p class="dim">One time per phone. The touchpad then runs over HTTPS, so nobody else on this Wi-Fi can read what you type.</p>
+
+  <div class="note" id="oldIcon" hidden>
+    <b>This Home Screen icon is the old, insecure version.</b> Follow the steps below in Safari, add the new
+    secure icon, then delete this one.
+  </div>
+
+  <ol>
+    <li id="s1">
+      <b>Download the certificate profile</b>
+      <p class="dim">Safari asks to allow a configuration profile: tap <b>Allow</b>, then <b>Close</b>.</p>
+      <a class="btn" href="touchpad-ca.mobileconfig">Download profile</a>
+      <p class="dim">Not an iPhone? <a href="touchpad-ca.crt" style="color:var(--accent)">Get the plain certificate</a>.</p>
+    </li>
+    <li id="s2">
+      <b>Install it</b>
+      <p class="dim">Settings → <b>Profile Downloaded</b> (near the top) → <b>Install</b>. It says “Not Verified”; that's expected for a certificate your own Mac made.</p>
+    </li>
+    <li id="s3">
+      <b>Turn on full trust</b>
+      <p class="dim">Settings → General → About → scroll to the bottom → <b>Certificate Trust Settings</b> → turn on <b>Mac Touchpad Local CA</b>.</p>
+    </li>
+    <li id="s4">
+      <b>Open the secure touchpad</b>
+      <p><span id="status">Checking…</span></p>
+      <a class="btn" id="open" href="{{https_url}}">Open secure touchpad</a>
+      <p class="dim">Then Share → <b>Add to Home Screen</b>, open the new icon, and approve this phone on the Mac.</p>
+    </li>
+  </ol>
+
+  <p class="dim">Check before trusting: in the profile's certificate details, the SHA-256 fingerprint must match the one the Mac prints at startup:</p>
+  <p class="fp">{{fingerprint}}</p>
+  <p class="dim">The certificate only works for <code>.local</code> names and private network addresses, so it can't be used to impersonate real websites.</p>
+</main>
+<script>
+  (function () {
+    var standalone = navigator.standalone || matchMedia('(display-mode: standalone)').matches;
+    if (standalone) document.getElementById('oldIcon').hidden = false;
+    var target = {{https_url_json}};
+    var status = document.getElementById('status');
+    function probe() {
+      // Resolves only if the TLS handshake succeeds, i.e. the phone trusts the certificate.
+      fetch(target + 'manifest.webmanifest', { mode: 'no-cors', cache: 'no-store' }).then(function () {
+        status.textContent = 'This phone trusts the Mac. You’re ready.';
+        status.className = 'ok';
+        ['s1', 's2', 's3'].forEach(function (id) { document.getElementById(id).classList.add('done'); });
+      }, function () {
+        status.textContent = 'Not trusted yet: finish steps 1 to 3 first.';
+        status.className = '';
+      });
+    }
+    probe();
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) probe(); });
+  })();
+</script>
+</body>
+</html>

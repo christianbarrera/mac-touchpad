@@ -1,0 +1,11 @@
+# Top-level dependencies. requirements.txt is generated from this with exact
+# versions + hashes (pyobjc is macOS-only, so Linux can still run --dry-run):
+#  uv pip compile requirements.in --universal --generate-hashes -o requirements.txt
+aiohttp==3.14.5
+cryptography==50.0.2
+pyobjc-framework-Quartz==13.0 ; sys_platform == 'darwin'
+pyobjc-framework-ApplicationServices==13.0 ; sys_platform == 'darwin'
+pyobjc-framework-Cocoa==13.0 ; sys_platform == 'darwin'
+# Keychain access for the app bundle (CA private key)
+pyobjc-framework-Security==13.0 ; sys_platform == 'darwin'
+qrcode==8.2

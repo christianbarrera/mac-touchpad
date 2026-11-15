@@ -1,0 +1,262 @@
+#!/bin/bash
+# Mac Touchpad: manage the app's login item, pairing and devices; run from source for development.
+#
+#   ./touchpad install-agent    start "/Applications/Mac Touchpad.app" at login (and now). Build and
+#                               install the app first: tools/build_app.sh. Options are kept, e.g.
+#                               ./touchpad install-agent --allow-when-locked
+#   ./touchpad uninstall-agent  remove the login item (the app keeps running until you quit it)
+#   ./touchpad stop             stop the app / login item (it starts again at next login)
+#   ./touchpad restart          restart the login item (e.g. after ./touchpad url --reset-token)
+#   ./touchpad status           is it running? prints the phone URL
+#   ./touchpad log              follow the app's log
+#   ./touchpad url              print the phone URL + QR code
+#   ./touchpad run              development: run from this folder in the foreground (Ctrl-C to stop)
+#   ./touchpad start            development: run from this folder in the background (logs/server.log)
+#   ./touchpad dry-run          development: run without injecting input
+#   ./touchpad pair             let ONE new phone pair in the next 2 minutes (setup page: 15 min)
+#   ./touchpad devices          list paired phones
+#   ./touchpad forget ID|all    unpair a phone and disconnect it (it must pair again, with approval on the Mac)
+#   ./touchpad trust-network    allow listening on the network you're on now (home Wi-Fi)
+#   ./touchpad networks         list trusted networks
+#   ./touchpad untrust-network KEY|all
+#   ./touchpad reset-certs      new HTTPS certificate authority (phones must reinstall the profile)
+#
+# Extra args after the command are passed to the server, e.g. ./touchpad run --port 9000
+set -eo pipefail   # (no -u: macOS bash 3.2 treats an empty "$@" as unbound)
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VENV="$DIR/.venv"
+PY="$VENV/bin/python"
+SERVER="$DIR/server/touchpad_server.py"
+LOG_DIR="$DIR/logs"
+PIDFILE="$LOG_DIR/server.pid"
+LABEL="local.mac-touchpad"
+PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
+APP="${TOUCHPAD_APP:-/Applications/Mac Touchpad.app}"
+APP_EXE="$APP/Contents/MacOS/Mac Touchpad"
+APP_LOG_DIR="$HOME/Library/Logs/Mac Touchpad"
+
+find_python() {
+  for p in /opt/homebrew/bin/python3.13 /opt/homebrew/bin/python3.12 /opt/homebrew/bin/python3 /usr/local/bin/python3 python3; do
+    if command -v "$p" >/dev/null 2>&1 && "$p" -c 'import sys; sys.exit(sys.version_info < (3, 11))' 2>/dev/null; then
+      echo "$p"; return 0
+    fi
+  done
+  echo "Python 3.11+ not found. Install it with: brew install python" >&2
+  exit 1
+}
+
+ensure_venv() {
+  local check='import aiohttp, qrcode, cryptography'
+  [[ "$(uname)" == Darwin ]] && check='import aiohttp, qrcode, cryptography, Quartz, ApplicationServices, AppKit'
+  if [[ ! -x "$PY" ]] || ! "$PY" -c "$check" 2>/dev/null; then
+    echo "First run: setting up Python environment in .venv (takes ~30 s)..."
+    [[ -x "$PY" ]] || "$(find_python)" -m venv "$VENV"
+    # Exact versions + sha256 hashes: a tampered or swapped package fails to install.
+    "$PY" -m pip install -q --require-hashes -r "$DIR/requirements.txt"
+  fi
+}
+
+running_pid() {
+  if [[ -f "$PIDFILE" ]]; then
+    local pid; pid="$(cat "$PIDFILE")"
+    if kill -0 "$pid" 2>/dev/null; then echo "$pid"; return 0; fi
+    rm -f "$PIDFILE"
+  fi
+  return 1
+}
+
+agent_loaded() { launchctl print "gui/$(id -u)/$LABEL" >/dev/null 2>&1; }
+
+cmd="${1:-run}"; shift || true
+
+case "$cmd" in
+  run)
+    ensure_venv
+    exec "$PY" "$SERVER" "$@"
+    ;;
+
+  dry-run)
+    ensure_venv
+    exec "$PY" "$SERVER" --dry-run "$@"
+    ;;
+
+  start)
+    ensure_venv
+    if pid="$(running_pid)"; then echo "Already running (pid $pid)."; "$PY" "$SERVER" --print-url --no-qr; exit 0; fi
+    if agent_loaded; then echo "Running as a login agent already (./touchpad status)."; exit 0; fi
+    mkdir -p "$LOG_DIR"
+    # Accessibility must be granted to *this terminal app* for a background run,
+    # so check it here in the foreground where the prompt/instructions are visible.
+    "$PY" -c "import sys; sys.path.insert(0, sys.argv[1]); import touchpad_server as t; sys.exit(0 if t.ensure_accessibility(90) else 2)" "$DIR/server" || exit 2
+    nohup "$PY" "$SERVER" --no-qr --wait-permission 0 "$@" >"$LOG_DIR/server.log" 2>&1 &
+    echo $! > "$PIDFILE"
+    sleep 1
+    if ! running_pid >/dev/null; then echo "Server failed to start:"; tail -20 "$LOG_DIR/server.log"; exit 1; fi
+    echo "Started in background (pid $(cat "$PIDFILE")). Stop with: ./touchpad stop"
+    "$PY" "$SERVER" --print-url "$@"
+    ;;
+
+  stop)
+    stopped=0
+    if pid="$(running_pid)"; then kill "$pid"; rm -f "$PIDFILE"; echo "Stopped (pid $pid)."; stopped=1; fi
+    if agent_loaded; then
+      launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
+      echo "Stopped the login item (it starts again at next login; ./touchpad uninstall-agent to remove it)."
+      stopped=1
+    fi
+    if pkill -TERM -f "^$APP_EXE" 2>/dev/null; then echo "Quit Mac Touchpad.app."; stopped=1; fi
+    [[ $stopped == 1 ]] || echo "Not running."
+    ;;
+
+  status)
+    if pid="$(running_pid)"; then echo "Running in background (pid $pid)."
+    elif agent_loaded; then echo "Running as a login item: $(launchctl print "gui/$(id -u)/$LABEL" | sed -n 's/^[[:space:]]*program = //p')"
+    elif pgrep -f "^$APP_EXE" >/dev/null; then echo "Mac Touchpad.app is running (not as a login item)."
+    else echo "Not running."; exit 1; fi
+    ensure_venv; "$PY" "$SERVER" --print-url --no-qr
+    ;;
+
+  pair)
+    ensure_venv
+    exec "$PY" "$SERVER" --open-pairing
+    ;;
+
+  trust-network)
+    ensure_venv
+    exec "$PY" "$SERVER" --trust-network
+    ;;
+
+  networks)
+    ensure_venv
+    exec "$PY" "$SERVER" --list-networks
+    ;;
+
+  untrust-network)
+    [[ -n "$1" ]] || { echo "Usage: ./touchpad untrust-network <id>|all   (see ./touchpad networks)" >&2; exit 1; }
+    ensure_venv
+    exec "$PY" "$SERVER" --untrust-network "$1"
+    ;;
+
+  reset-certs)
+    if [[ -x "$APP_EXE" ]]; then
+      # The app keeps the CA key in the keychain, which only the app itself can write.
+      exec "$APP_EXE" --reset-ca
+    fi
+    ensure_venv
+    exec "$PY" "$SERVER" --reset-ca
+    ;;
+
+  restart)
+    agent_loaded || { echo "The login item isn't loaded (./touchpad install-agent)." >&2; exit 1; }
+    # A copy opened by hand (e.g. after Quit in the menu) holds the single-instance lock and
+    # isn't restarted on a crash: replace it with the login item's copy.
+    if pkill -TERM -f "^$APP_EXE" 2>/dev/null; then
+      for _ in 1 2 3 4 5 6 7 8 9 10; do pgrep -f "^$APP_EXE" >/dev/null || break; sleep 0.5; done
+    fi
+    launchctl kickstart -k "gui/$(id -u)/$LABEL"
+    echo "Restarted Mac Touchpad (as the login item)."
+    ;;
+
+  log)
+    exec tail -n 40 -F "$APP_LOG_DIR/touchpad.log"
+    ;;
+
+  devices)
+    ensure_venv
+    exec "$PY" "$SERVER" --list-devices
+    ;;
+
+  forget)
+    [[ -n "$1" ]] || { echo "Usage: ./touchpad forget <id>|all   (ids: ./touchpad devices)" >&2; exit 1; }
+    ensure_venv
+    exec "$PY" "$SERVER" --forget "$1"
+    ;;
+
+  url)
+    ensure_venv
+    "$PY" "$SERVER" --print-url "$@"
+    ;;
+
+  install-agent)
+    if [[ ! -x "$APP_EXE" ]] || ! codesign --verify --strict "$APP" 2>/dev/null; then
+      echo "Mac Touchpad.app isn't installed (or its signature doesn't check out): $APP" >&2
+      echo "Build and install it first:  tools/build_app.sh" >&2
+      exit 1
+    fi
+    ensure_venv
+    if pid="$(running_pid)"; then kill "$pid"; rm -f "$PIDFILE"; fi
+    if ! "$PY" "$SERVER" --list-networks | grep -q "you are here"; then
+      echo "The touchpad only listens on networks you trust, and this one isn't trusted yet."
+      read -r -p "Is this your own home network, and should it be trusted? [y/N] " ans
+      if [[ "$ans" =~ ^[Yy] ]]; then "$PY" "$SERVER" --trust-network
+      else echo "OK. The app will stay silent until you trust a network (menu bar, or ./touchpad trust-network)."; fi
+    fi
+    # --allow-when-locked is an app setting (also in its menu); other options go on its command line.
+    EXTRA=""
+    locked=""
+    for a in "$@"; do
+      if [[ "$a" == "--allow-when-locked" ]]; then locked=on; continue; fi
+      a="${a//&/&amp;}"; a="${a//</&lt;}"; a="${a//>/&gt;}"
+      EXTRA="$EXTRA
+    <string>$a</string>"
+    done
+    if [[ -z "$locked" && -f "$PLIST" ]] && grep -q -- "--allow-when-locked" "$PLIST"; then
+      locked=on
+      echo "Keeping --allow-when-locked from the old login agent."
+    fi
+    if [[ -n "$locked" ]]; then
+      "$PY" "$SERVER" --set allow_when_locked=on >/dev/null && echo "Input at the lock screen: allowed."
+    fi
+    mkdir -p "$APP_LOG_DIR" "$(dirname "$PLIST")"
+    APP_XML="${APP_EXE//&/&amp;}"
+    cat > "$PLIST" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>$LABEL</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>$APP_XML</string>$EXTRA
+  </array>
+  <key>AssociatedBundleIdentifiers</key><string>local.mac-touchpad</string>
+  <key>LimitLoadToSessionType</key><string>Aqua</string>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
+  <key>ThrottleInterval</key><integer>10</integer>
+  <key>ProcessType</key><string>Interactive</string>
+  <key>StandardOutPath</key><string>$APP_LOG_DIR/launchd.log</string>
+  <key>StandardErrorPath</key><string>$APP_LOG_DIR/launchd.log</string>
+</dict>
+</plist>
+EOF
+    plutil -lint "$PLIST" >/dev/null
+    pkill -TERM -f "^$APP_EXE" 2>/dev/null || true      # a copy started by hand
+    launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
+    # bootout returns before the old agent has finished stopping; loading the new
+    # one too early fails with "Input/output error", so wait for it to be gone.
+    for _ in 1 2 3 4 5 6 7 8 9 10; do agent_loaded || break; sleep 0.5; done
+    launchctl bootstrap "gui/$(id -u)" "$PLIST" || { sleep 2; launchctl bootstrap "gui/$(id -u)" "$PLIST"; }
+    echo "Login item installed: $PLIST"
+    echo "  runs: $APP"
+    echo "  log:  $APP_LOG_DIR/touchpad.log   (./touchpad log)"
+    echo
+    echo "Look for the Mac Touchpad icon in the menu bar. If macOS asks whether it may accept"
+    echo "incoming network connections, click Allow (the phone can't reach it otherwise)."
+    ;;
+
+  uninstall-agent)
+    launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
+    rm -f "$PLIST"
+    echo "Login item removed. (To use the touchpad without it, open Mac Touchpad from Applications.)"
+    ;;
+
+  -h|--help|help)
+    sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'
+    ;;
+
+  *)
+    echo "Unknown command: $cmd (try ./touchpad help)" >&2; exit 1
+    ;;
+esac

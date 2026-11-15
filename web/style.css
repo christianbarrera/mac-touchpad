@@ -1,0 +1,472 @@
+:root {
+  --bg: #0b0d12;
+  --pad: #11141b;
+  --pad-edge: #1c2130;
+  --panel: #161a23;
+  --btn: #1f2430;
+  --btn-press: #2d3446;
+  --text: #e8ebf2;
+  --muted: #8a93a6;
+  --accent: #6c8cff;
+  --ok: #3ddc84;
+  --warn: #f5b942;
+  --bad: #ff5d5d;
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-l: env(safe-area-inset-left, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+  color-scheme: dark;
+}
+
+/* ---- Lock the page down: no scrolling, zooming, bouncing, selecting ---- */
+html, body {
+  position: fixed;
+  inset: 0;
+  margin: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.35 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+}
+body {
+  display: flex;
+  flex-direction: column;
+  padding: var(--safe-t) var(--safe-r) 0 var(--safe-l);
+}
+button {
+  font: inherit;
+  color: inherit;
+  border: 0;
+  background: none;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: pointer;
+}
+[hidden] { display: none !important; }
+
+/* ---- Top status bar ---- */
+#top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 14px 6px;
+  min-height: 34px;
+}
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px 5px 10px;
+  border-radius: 999px;
+  background: var(--panel);
+  font-size: 13px;
+  color: var(--muted);
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.status .dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--warn);
+  flex: none;
+}
+.status[data-state="connected"] .dot { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+.status[data-state="connected"] { color: var(--text); }
+.status[data-state="disconnected"] .dot { background: var(--bad); }
+.status[data-state="connecting"] .dot,
+.status[data-state="authenticating"] .dot,
+.status[data-state="pairing"] .dot { animation: pulse 1s ease-in-out infinite; }
+.status[data-state="blocked"] .dot { background: var(--bad); }
+#latency { color: var(--muted); font-variant-numeric: tabular-nums; }
+#latency:not(:empty)::before { content: "· "; }
+.badge {
+  font-size: 12px; font-weight: 600;
+  padding: 4px 10px; border-radius: 999px;
+  background: var(--accent); color: #fff;
+}
+@keyframes pulse { 50% { opacity: .3; } }
+
+/* ---- Keyboard bar ---- */
+#kbbar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  margin: 0 10px 6px;
+  border-radius: 12px;
+  background: var(--panel);
+}
+#kbinput {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 40px;
+  max-height: 140px;          /* about 5 lines, then it scrolls */
+  padding: 8px 10px;
+  border: 1px solid var(--pad-edge);
+  border-radius: 10px;
+  background: var(--pad);
+  color: var(--text);
+  font: 16px/1.35 -apple-system, system-ui, sans-serif;   /* 16px: no iOS zoom-on-focus */
+  resize: none;
+  overflow-y: auto;
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;   /* long-press → Paste */
+  touch-action: auto;
+}
+#kbinput::placeholder { color: var(--muted); }
+#kbinput:focus { outline: none; border-color: var(--accent); }
+#pwinput {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  height: 40px;
+  padding: 8px 10px;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  background: var(--pad);
+  color: var(--text);
+  font: 16px/1.35 -apple-system, system-ui, sans-serif;   /* 16px: no iOS zoom-on-focus */
+  -webkit-user-select: text;
+  user-select: text;
+  touch-action: auto;
+}
+#pwinput[hidden], #kbinput[hidden] { display: none; }
+#pwinput::placeholder { color: var(--muted); font-size: 14px; }
+#pwinput:focus { outline: none; }
+.key[aria-pressed="true"] { background: var(--accent); color: #fff; }
+.kb-keys { display: flex; gap: 6px; }
+.key {
+  min-width: 38px; height: 32px; padding: 0 8px;
+  border-radius: 8px; background: var(--btn); font-size: 13px;
+}
+.key:active { background: var(--btn-press); }
+.kb-clear { margin-left: auto; color: var(--muted); }
+
+
+/* ---- The pad ---- */
+#pad {
+  position: relative;
+  flex: 1;
+  margin: 0 10px;
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 1px 1px, rgba(255,255,255,.05) 1px, transparent 1.5px) 0 0 / 22px 22px,
+    var(--pad);
+  border: 1px solid var(--pad-edge);
+  overflow: hidden;
+  touch-action: none;
+}
+/* One-finger scroll strip (app.js STRIP_W = 60 px is the touch zone; this is its visible rail) */
+.strip {
+  position: absolute;
+  top: 14px;
+  bottom: 14px;
+  right: 8px;
+  width: 44px;
+  border-radius: 22px;
+  border: 1px solid var(--pad-edge);
+  background: rgba(255,255,255,.035);
+  pointer-events: none;
+  transition: background .15s, border-color .15s;
+}
+.strip.left { right: auto; left: 8px; }
+.strip.on { background: rgba(108,140,255,.16); border-color: var(--accent); }
+/* One tap moves the strip to the other side. It sits in the corner opposite the
+   strip, where the other hand's thumb lands. */
+.strip-swap {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid var(--pad-edge);
+  background: rgba(255,255,255,.05);
+  color: var(--muted);
+  font-size: 20px;
+  line-height: 1;
+  z-index: 2;
+}
+.strip-swap.right { left: auto; right: 12px; }
+.strip-swap.pressed { background: var(--btn-press); color: var(--text); }
+.strip span {                          /* grip lines */
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 16px;
+  height: 22px;
+  transform: translate(-50%, -50%);
+  background: repeating-linear-gradient(to bottom, var(--muted) 0 2px, transparent 2px 7px);
+  border-radius: 1px;
+  opacity: .55;
+}
+
+.hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 2px;
+  color: var(--muted);
+  font-size: 14px;
+  text-align: center;
+  pointer-events: none;
+  transition: opacity .6s;
+}
+.hint p { margin: 3px 0; }
+.hint b { color: var(--text); font-weight: 600; }
+.hint.gone { opacity: 0; }
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 24px;
+  text-align: center;
+  background: rgba(11,13,18,.82);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .25s;
+}
+body.offline .overlay { opacity: 1; }
+body.blocked .overlay { pointer-events: auto; background: rgba(11,13,18,.96); }
+body.blocked .spinner { display: none; }
+.overlay-btn {
+  margin-top: 12px;
+  padding: 10px 22px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+.overlay p { margin: 0; }
+.overlay .sub { color: var(--muted); font-size: 13px; max-width: 300px; }
+.overlay code { color: var(--text); }
+.spinner {
+  width: 26px; height: 26px; margin-bottom: 8px;
+  border-radius: 50%;
+  border: 3px solid var(--btn-press);
+  border-top-color: var(--accent);
+  animation: spin .9s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.touchdot {
+  position: absolute;
+  left: 0; top: 0;
+  width: 54px; height: 54px;
+  margin: -27px 0 0 -27px;
+  border-radius: 50%;
+  background: rgba(108,140,255,.16);
+  border: 1.5px solid rgba(108,140,255,.55);
+  pointer-events: none;
+  will-change: transform;
+}
+.touchdot.drag { background: rgba(108,140,255,.4); border-color: var(--accent); }
+.ripple {
+  position: absolute;
+  width: 54px; height: 54px;
+  margin: -27px 0 0 -27px;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  pointer-events: none;
+  animation: ripple .35s ease-out forwards;
+}
+.ripple.right { border-color: var(--warn); }
+@keyframes ripple { from { transform: scale(.5); opacity: 1; } to { transform: scale(1.6); opacity: 0; } }
+
+.flash {
+  position: absolute;
+  left: 50%; bottom: 18px;
+  transform: translateX(-50%);
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: var(--btn-press);
+  font-size: 13px; font-weight: 600;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .15s;
+}
+.flash.show { opacity: 1; transition: none; }
+
+/* ---- Remote ---- */
+#remote {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 10px 0;
+}
+.row { display: grid; gap: 8px; }
+.r3 { grid-template-columns: repeat(3, 1fr); }
+.r4 { grid-template-columns: repeat(4, 1fr); }
+.rbtn {
+  height: 46px;
+  border-radius: 14px;
+  background: var(--btn);
+  font-size: 15px;
+  font-weight: 500;
+  transition: background .08s, transform .08s;
+}
+.rbtn.small { font-size: 12px; }
+.rbtn.accent { background: #26315a; }
+.rbtn.pressed, .rbtn.on { background: var(--btn-press); transform: scale(.96); }
+.rbtn.on { background: var(--accent); color: #fff; transform: none; }
+.dpad {
+  display: grid;
+  grid-template-columns: repeat(3, 64px);
+  grid-template-rows: repeat(3, 52px);
+  gap: 6px;
+  justify-content: center;
+}
+.dpad .rbtn { height: auto; }
+.dpad .up    { grid-area: 1 / 2; }
+.dpad .left  { grid-area: 2 / 1; }
+.dpad .ok    { grid-area: 2 / 2; border-radius: 50%; background: #26315a; font-weight: 700; }
+.dpad .right { grid-area: 2 / 3; }
+.dpad .down  { grid-area: 3 / 2; }
+
+/* ---- Bottom toolbar ---- */
+#toolbar {
+  display: flex;
+  justify-content: space-around;
+  padding: 6px 10px calc(6px + var(--safe-b));
+}
+.tbtn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 14px;
+  border-radius: 12px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.tbtn svg {
+  width: 24px; height: 24px;
+  fill: none; stroke: currentColor; stroke-width: 1.6;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+.tbtn[aria-pressed="true"] { color: var(--accent); background: var(--panel); }
+
+/* ---- Settings sheet ---- */
+.sheet {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  max-height: 80%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  padding: 6px 18px calc(18px + var(--safe-b));
+  background: var(--panel);
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -10px 40px rgba(0,0,0,.5);
+  z-index: 10;
+}
+.sheet-head { display: flex; align-items: center; justify-content: space-between; }
+.sheet h2 { font-size: 17px; margin: 10px 0; }
+.link { color: var(--accent); font-weight: 600; padding: 8px 0; }
+.link.danger { color: var(--bad); font-weight: 500; }
+.field { display: block; padding: 10px 0; }
+.field span { display: flex; justify-content: space-between; margin-bottom: 6px; }
+.field output { color: var(--muted); font-variant-numeric: tabular-nums; }
+.field.select span { display: block; }
+.field.select small { display: block; color: var(--muted); font-size: 12px; }
+.field select {
+  width: 100%; margin-top: 4px; padding: 8px 10px; border-radius: 10px;
+  border: 1px solid var(--pad-edge); background: var(--btn); color: var(--text); font: inherit;
+}
+.field input { width: 100%; accent-color: var(--accent); touch-action: pan-x; }
+.toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--pad-edge);
+}
+.toggle small { display: block; color: var(--muted); font-size: 12px; }
+.toggle input { width: 22px; height: 22px; accent-color: var(--accent); flex: none; }
+.about { color: var(--muted); font-size: 12px; }
+
+.install-tip {
+  position: fixed;
+  left: 12px; right: 12px;
+  bottom: calc(70px + var(--safe-b));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: #26315a;
+  font-size: 13px;
+  z-index: 5;
+}
+
+/* Short (landscape) screens: compact toolbar; remote sits beside the pad */
+@media (max-height: 520px) {
+  html:not(.rot) #top { padding-top: 4px; padding-bottom: 4px; }
+  html:not(.rot) #toolbar { padding-top: 2px; }
+  html:not(.rot) .tbtn { flex-direction: row; gap: 6px; padding: 4px 12px; font-size: 12px; }
+  html:not(.rot) .tbtn svg { width: 20px; height: 20px; }
+  html:not(.rot) body.remote-open {
+    display: grid;
+    grid-template-columns: 1fr minmax(300px, 46%);
+    grid-template-rows: auto auto 1fr auto;
+    grid-template-areas: "top top" "kb kb" "pad remote" "bar bar";
+  }
+  html:not(.rot) body.remote-open #top { grid-area: top; }
+  html:not(.rot) body.remote-open #kbbar { grid-area: kb; }
+  html:not(.rot) body.remote-open #pad { grid-area: pad; min-height: 0; }
+  html:not(.rot) body.remote-open #remote { grid-area: remote; padding-top: 0; gap: 6px; overflow: hidden; min-height: 0; }
+  html:not(.rot) body.remote-open #toolbar { grid-area: bar; }
+  html:not(.rot) .row { gap: 6px; }
+  html:not(.rot) .rbtn { height: 36px; }
+  html:not(.rot) .dpad { grid-template-rows: repeat(3, 34px); grid-template-columns: repeat(3, 52px); gap: 4px; }
+}
+
+/* ---- Portrait lock: phone turned sideways -> rotate the page back (see updateRotation in app.js) ---- */
+html.rot body {
+  inset: auto;
+  top: 0;
+  left: 0;
+  width: var(--vh);
+  height: var(--vw);
+  transform-origin: 0 0;
+}
+html.rot-cw body { transform: translateX(var(--vw)) rotate(90deg); }
+html.rot-ccw body { transform: translateY(var(--vh)) rotate(-90deg); }
+/* The notch / home bar move with the phone: remap the safe areas onto the page's own edges. */
+html.rot-ccw {
+  --safe-t: env(safe-area-inset-left, 0px);
+  --safe-b: env(safe-area-inset-right, 0px);
+  --safe-l: env(safe-area-inset-bottom, 0px);
+  --safe-r: env(safe-area-inset-top, 0px);
+}
+html.rot-cw {
+  --safe-t: env(safe-area-inset-right, 0px);
+  --safe-b: env(safe-area-inset-left, 0px);
+  --safe-l: env(safe-area-inset-top, 0px);
+  --safe-r: env(safe-area-inset-bottom, 0px);
+}

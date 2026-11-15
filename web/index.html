@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Mac Touchpad</title>
+
+<!-- Full-screen "app" when launched from the Home Screen -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Touchpad">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="format-detection" content="telephone=no">
+<meta name="theme-color" content="#0b0d12">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header id="top">
+    <div id="status" class="status" data-state="connecting">
+      <span class="dot"></span><span id="statusText">Connecting…</span><span id="latency"></span>
+    </div>
+    <span id="dragBadge" class="badge" hidden>Dragging</span>
+  </header>
+
+  <div id="kbbar" class="allow-touch" hidden>
+    <!-- 16px font = no zoom on focus. Autocorrect attributes are set from Settings. -->
+    <textarea id="kbinput" rows="1" placeholder="Type here: it appears on the Mac as you go" autocomplete="off" autocorrect="on" autocapitalize="sentences" spellcheck="true" enterkeyhint="enter" aria-label="Type to Mac"></textarea>
+    <!-- Password mode: masked, never autocorrected or learned by the keyboard, sent only on Return. -->
+    <input id="pwinput" type="password" hidden placeholder="Password: sent to the Mac when you press Return" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="send" aria-label="Password to send to the Mac">
+    <div class="kb-keys">
+      <button class="key" data-key="escape">esc</button>
+      <button class="key" data-key="tab">tab</button>
+      <button class="key" data-key="left" aria-label="Left">←</button>
+      <button class="key" data-key="right" aria-label="Right">→</button>
+      <button id="kbPass" class="key" aria-pressed="false" aria-label="Password mode">Password</button>
+      <button id="kbClear" class="key kb-clear" aria-label="Clear the box (keeps the text on the Mac)">Clear</button>
+    </div>
+  </div>
+
+  <main id="pad" aria-label="Touchpad">
+    <div id="strip" class="strip" aria-hidden="true"><span></span></div>
+    <button id="stripSwap" class="strip-swap" aria-label="Move the scroll strip to the other side">⇆</button>
+    <div id="hint" class="hint">
+      <p><b>1 finger</b> move</p>
+      <p><b>Tap</b> click &nbsp;·&nbsp; <b>2-finger tap</b> right-click</p>
+      <p><b>2-finger drag</b> scroll</p>
+      <p><b>Pinch</b> zoom &nbsp;·&nbsp; <b>twist</b> rotate</p>
+      <p><b>3-finger swipe</b> Mission Control · desktops</p>
+      <p><b>Edge strip</b> one-finger scroll · <b>⇆</b> switch sides</p>
+      <p><b>Tap, then touch &amp; drag</b> to drag</p>
+    </div>
+    <div id="overlay" class="overlay">
+      <div class="spinner"></div>
+      <p id="overlayText">Connecting to your Mac…</p>
+      <p class="sub" id="overlaySub"></p>
+      <button id="overlayBtn" class="overlay-btn" hidden>Try again</button>
+    </div>
+    <div id="flash" class="flash"></div>
+  </main>
+
+  <section id="remote" hidden>
+    <div class="row r4">
+      <button class="rbtn" data-key="escape">Esc</button>
+      <button class="rbtn" data-key="space">Space</button>
+      <button class="rbtn" data-key="tab" data-mods="cmd">⌘ Tab</button>
+      <button class="rbtn" data-key="space" data-mods="cmd" aria-label="Spotlight">Spotlight</button>
+    </div>
+    <div class="dpad">
+      <button class="rbtn up" data-key="up" data-repeat aria-label="Up">▲</button>
+      <button class="rbtn left" data-key="left" data-repeat aria-label="Left">◀</button>
+      <button class="rbtn ok" data-key="return">OK</button>
+      <button class="rbtn right" data-key="right" data-repeat aria-label="Right">▶</button>
+      <button class="rbtn down" data-key="down" data-repeat aria-label="Down">▼</button>
+    </div>
+    <div class="row r3">
+      <button class="rbtn" data-media="prev" aria-label="Previous">⏮</button>
+      <button class="rbtn accent" data-media="play" aria-label="Play/Pause">⏯</button>
+      <button class="rbtn" data-media="next" aria-label="Next">⏭</button>
+    </div>
+    <div class="row r3">
+      <button class="rbtn" data-media="mute">Mute</button>
+      <button class="rbtn" data-media="voldown" data-repeat aria-label="Volume down">Vol −</button>
+      <button class="rbtn" data-media="volup" data-repeat aria-label="Volume up">Vol +</button>
+    </div>
+    <div class="row r4">
+      <button class="rbtn small" data-key="up" data-mods="ctrl">Mission Ctrl</button>
+      <button class="rbtn small" data-key="f" data-mods="ctrl,cmd">Full screen</button>
+      <button class="rbtn small" data-key="w" data-mods="cmd">Close ⌘W</button>
+      <button class="rbtn small" id="holdBtn">Hold click</button>
+    </div>
+  </section>
+
+  <nav id="toolbar">
+    <button id="btnRemote" class="tbtn" aria-pressed="false">
+      <svg viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="3"/><circle cx="12" cy="8" r="2"/><path d="M10 13h4M10 16h4"/></svg>
+      <span>Remote</span>
+    </button>
+    <button id="btnKeyboard" class="tbtn" aria-pressed="false">
+      <svg viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 10h1M9 10h1M12 10h1M15 10h1M18 10h0.5M7 14h10"/></svg>
+      <span>Keyboard</span>
+    </button>
+    <button id="btnSettings" class="tbtn" aria-pressed="false">
+      <svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
+      <span>Settings</span>
+    </button>
+  </nav>
+
+  <div id="settings" class="sheet allow-touch" hidden>
+    <div class="sheet-head"><h2>Settings</h2><button id="closeSettings" class="link">Done</button></div>
+    <label class="field"><span>Pointer speed <output data-for="sens"></output></span>
+      <input type="range" data-setting="sens" min="0.4" max="3" step="0.1"></label>
+    <label class="field"><span>Acceleration <output data-for="accel"></output></span>
+      <input type="range" data-setting="accel" min="0" max="2" step="0.1"></label>
+    <label class="field"><span>Scroll speed <output data-for="scroll"></output></span>
+      <input type="range" data-setting="scroll" min="0.3" max="5" step="0.1"></label>
+    <label class="toggle"><span>Natural scrolling<small>Content follows your fingers</small></span>
+      <input type="checkbox" data-setting="natural"></label>
+    <label class="field select"><span>One-finger scroll strip<small>A strip along the edge you drag with one thumb to scroll</small></span>
+      <select data-setting="strip">
+        <option value="right">Right edge</option>
+        <option value="left">Left edge</option>
+        <option value="off">Off</option>
+      </select></label>
+    <label class="toggle"><span>Tap-then-drag<small>Tap, then touch &amp; move to drag windows/selections</small></span>
+      <input type="checkbox" data-setting="dragTap"></label>
+    <label class="toggle"><span>Keep screen awake<small>While you use it; sleeps after 2 min without a touch</small></span>
+      <input type="checkbox" data-setting="awake"></label>
+    <label class="toggle"><span>Autocorrect<small>Fixes words in the Keyboard box before they reach the Mac</small></span>
+      <input type="checkbox" data-setting="autocorrect"></label>
+    <label class="toggle"><span>Haptic tick (experimental)<small>Uses an iOS 18+ trick on taps &amp; buttons; may do nothing</small></span>
+      <input type="checkbox" data-setting="haptics"></label>
+    <button id="resetSettings" class="link danger">Reset to defaults</button>
+    <p class="about">Server: <span id="aboutHost">—</span></p>
+  </div>
+
+  <div id="installTip" class="install-tip" hidden>
+    For full-screen: tap <b>Share</b> → <b>Add to Home Screen</b>.
+    <button id="dismissTip" class="link">OK</button>
+  </div>
+
+  <script src="hmac.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

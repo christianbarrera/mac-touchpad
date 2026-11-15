@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Hardened-runtime exceptions for Mac Touchpad.app.
+     A self-signed certificate has no Team ID, so library validation (load only
+     libraries from the same team) can't be used: every bundled library would be
+     refused. The libraries all live inside the root-owned bundle instead. -->
+<plist version="1.0">
+<dict>
+  <key>com.apple.security.cs.disable-library-validation</key>
+  <true/>
+</dict>
+</plist>

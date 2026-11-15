@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "touchpad-dry-run",
+      "runtimeExecutable": "env",
+      "runtimeArgs": ["HOME=/tmp/mac-touchpad-dry-run", "TOUCHPAD_TEST_AUTO_APPROVE=1", "./touchpad", "dry-run", "--port", "8775", "--tls-port", "8776", "--no-qr", "-v", "--any-network"],
+      "port": 8775
+    },
+    {
+      "name": "touchpad-browser-test",
+      "runtimeExecutable": "env",
+      "runtimeArgs": ["HOME=/tmp/mac-touchpad-browser-test", "TOUCHPAD_TEST_AUTO_APPROVE=1", "./touchpad", "dry-run", "--no-tls", "--port", "8785", "--no-qr", "-v", "--any-network"],
+      "port": 8785
+    }
+  ]
+}
